@@ -1,0 +1,6 @@
+name: Adm1nGuard
+version: '1.0.0'
+main: me.adm1nguard.adm1nGuard.Adm1nGuard
+api-version: '1.21'
+author: Waryxen
+description: Custom made Anti NBT plugin
