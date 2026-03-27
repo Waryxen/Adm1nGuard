@@ -1,17 +1,21 @@
 package me.adm1nguard.adm1nGuard;
 
+import me.adm1nguard.adm1nGuard.checkers.IllegalAttributeChecker;
 import me.adm1nguard.adm1nGuard.checkers.IllegalEnchantChecker;
-import me.adm1nguard.adm1nGuard.listeners.AttributeListener;
-import me.adm1nguard.adm1nGuard.listeners.BlacklistListener;
-import me.adm1nguard.adm1nGuard.listeners.EnchantListener;
+import me.adm1nguard.adm1nGuard.listeners.ItemSafetyListener;
+import me.adm1nguard.adm1nGuard.utils.ColorUtils;
+import me.adm1nguard.adm1nGuard.utils.KeyUtil;
 import me.adm1nguard.adm1nGuard.utils.MessageUtils;
 import org.bukkit.Bukkit;
+import org.bukkit.attribute.Attribute;
+import org.bukkit.attribute.AttributeModifier;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
-import org.bukkit.event.Listener;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 public final class Adm1nGuard extends JavaPlugin {
@@ -21,13 +25,7 @@ public final class Adm1nGuard extends JavaPlugin {
     @Override
     public void onEnable() {
         instance = this;
-        register(this, new EnchantListener(this));
-        register(this, new AttributeListener(this));
-        register(this, new BlacklistListener(this));
-    }
-
-    public static void register(JavaPlugin plugin, Listener listener) {
-        plugin.getServer().getPluginManager().registerEvents(listener, plugin);
+        getServer().getPluginManager().registerEvents(new ItemSafetyListener(this), this);
     }
 
     @Override
@@ -39,36 +37,50 @@ public final class Adm1nGuard extends JavaPlugin {
         return instance;
     }
 
-    // Handle illegal item
-    public void handleIllegalItem(Player player, ItemStack item) {
-        // Get illegal enchantments
-        Map<Enchantment, Integer> illegal = IllegalEnchantChecker.getIllegalEnchants(item);
+    public void handleIllegalItem(Player player, ItemStack item, List<String> reasons) {
+        if (item == null) return;
 
-        if (illegal.isEmpty()) return;
+        List<String> violations = new ArrayList<>();
 
-        // Build a readable string of illegal enchants
-        StringBuilder enchantsString = new StringBuilder();
-        illegal.forEach((enchant, level) -> enchantsString.append("&c")
-                .append(enchant.getKey().getKey())
-                .append(" &6")
-                .append(level)
-                .append("&c, "));
+        Map<Enchantment, Integer> illegalEnchants = IllegalEnchantChecker.getIllegalEnchants(item);
+        illegalEnchants.forEach((enchant, level) ->
+                violations.add("&cEnchant: &6" + KeyUtil.key(enchant) + " " + level)
+        );
 
-        // Remove trailing comma and space
-        if (enchantsString.length() >= 2) {
-            enchantsString.setLength(enchantsString.length() - 2);
+        Map<Attribute, List<AttributeModifier>> illegalAttributes =
+                IllegalAttributeChecker.getIllegalAttributes(item);
+
+        illegalAttributes.forEach((attribute, modifiers) -> {
+            for (AttributeModifier modifier : modifiers) {
+                violations.add("&cAttribute: &6" + KeyUtil.attribute(attribute)
+                        + " &7(amount: &e" + modifier.getAmount() + "&7)");
+            }
+        });
+        List<String> blacklistedItems = getConfig().getStringList("blacklisted-items");
+        if (blacklistedItems.contains(item.getType().getKey().getKey())) {
+            violations.add("&cBlacklisted Item: &6" + KeyUtil.material(item.getType()));
+        }
+        if (reasons != null && !reasons.isEmpty()) {
+            violations.addAll(reasons);
         }
 
-        MessageUtils.sendMessage(player, "&cIllegal enchantments detected: " + enchantsString);
+        if (violations.isEmpty()) return;
 
-        String staffMessage = "&e[Staff Alert] &c" + player.getName() + " had illegal item: " + enchantsString;
+        String violationsString = String.join("&c, ", violations);
+
+        MessageUtils.sendMessage(player, "&cIllegal item detected: " + violationsString);
+
+        // Notify staff
+        String staffMessage = "&e[Staff Alert] &c" + player.getName()
+                + " had illegal item: " + violationsString;
+
         Bukkit.getOnlinePlayers().stream()
                 .filter(p -> p.hasPermission("adm1nguard.staff"))
                 .forEach(p -> MessageUtils.sendMessage(p, staffMessage));
-
-        // Remove illegal item
         player.getInventory().remove(item);
 
-        getLogger().warning(player.getName() + " had illegal item: " + illegal);
+        getLogger().warning(player.getName() + " had illegal item: "
+                + KeyUtil.material(item.getType())
+                + " -> " + ColorUtils.stripColor(violationsString.replace("&", "§")));
     }
 }
