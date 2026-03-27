@@ -2,7 +2,7 @@
 
 > ⚠ **Paper-only plugin**
 
-**Adm1nGuard** is a lightweight PaperMC anti-illegal-item plugin that checks player items for:
+**Adm1nGuard** is a PaperMC anti-illegal-item plugin that checks player items for:
 
 * Illegal enchantments
 * Illegal attribute modifiers
@@ -13,7 +13,6 @@ When a violation is found, the plugin can notify the player, alert staff, and re
 ## Requirements
 
 - **Paper** server software
--
 - A compatible **Minecraft/Paper API version**
 - Java version required by your build setup
 
@@ -25,18 +24,18 @@ When a violation is found, the plugin can notify the player, alert staff, and re
 * Detects illegal attribute modifiers on items
 * Sends staff alerts to players with permission
 * Removes illegal items from player inventories
-* Easy to extend with more checkers and listeners
 
 ## Permissions
 
 * `adm1nguard.staff` — receives staff alerts when a player is caught with an illegal item
+* `adm1nguard.bypass` — bypasses all checks and is not affected by the plugin
 
 ## Installation
 
 1. Build the plugin JAR.
 2. Place the JAR in your server's `plugins` folder.
 3. Start or restart the server.
-4. Make sure your server is running a compatible Spigot/Paper version.
+4. Make sure your server is running a compatible Paper version.
 
 ## Usage
 
@@ -46,7 +45,7 @@ Example flow:
 
 1. A player obtains or uses an illegal item.
 2. A listener detects it.
-3. `handleIllegalItem(Player, ItemStack)` is called.
+3. `handleIllegalItem` is called.
 4. The player receives a warning.
 5. Staff with the proper permission receive an alert.
 6. The illegal item is removed.
@@ -57,4 +56,4 @@ Example flow:
 
 ## License
 
-Add your preferred license here.
+[MIT License](https://github.com/Waryxen/Adm1nGuard/blob/main/LICENSE)
