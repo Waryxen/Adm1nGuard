@@ -1,22 +1,18 @@
 package me.adm1nguard.adm1nGuard;
 
-import me.adm1nguard.adm1nGuard.checkers.IllegalAttributeChecker;
-import me.adm1nguard.adm1nGuard.checkers.IllegalEnchantChecker;
 import me.adm1nguard.adm1nGuard.listeners.ItemSafetyListener;
 import me.adm1nguard.adm1nGuard.utils.ColorUtils;
 import me.adm1nguard.adm1nGuard.utils.KeyUtil;
 import me.adm1nguard.adm1nGuard.utils.MessageUtils;
+import me.adm1nguard.adm1nGuard.utils.PermissionUtil;
 import org.bukkit.Bukkit;
-import org.bukkit.attribute.Attribute;
-import org.bukkit.attribute.AttributeModifier;
-import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
 
 public final class Adm1nGuard extends JavaPlugin {
 
@@ -38,36 +34,15 @@ public final class Adm1nGuard extends JavaPlugin {
     }
 
     public void handleIllegalItem(Player player, ItemStack item, List<String> reasons) {
-        if (item == null) return;
+        if (player == null || item == null || item.getType().isAir()) return;
+        if (reasons == null || reasons.isEmpty()) return;
 
-        List<String> violations = new ArrayList<>();
-
-        Map<Enchantment, Integer> illegalEnchants = IllegalEnchantChecker.getIllegalEnchants(item);
-        illegalEnchants.forEach((enchant, level) ->
-                violations.add("&cEnchant: &6" + KeyUtil.key(enchant) + " " + level)
-        );
-
-        Map<Attribute, List<AttributeModifier>> illegalAttributes =
-                IllegalAttributeChecker.getIllegalAttributes(item);
-
-        illegalAttributes.forEach((attribute, modifiers) -> {
-            for (AttributeModifier modifier : modifiers) {
-                violations.add("&cAttribute: &6" + KeyUtil.attribute(attribute)
-                        + " &7(amount: &e" + modifier.getAmount() + "&7)");
-            }
-        });
-        List<String> blacklistedItems = getConfig().getStringList("blacklisted-items");
-        if (blacklistedItems.contains(item.getType().getKey().getKey())) {
-            violations.add("&cBlacklisted Item: &6" + KeyUtil.material(item.getType()));
-        }
-        if (reasons != null && !reasons.isEmpty()) {
-            violations.addAll(reasons);
-        }
-
-        if (violations.isEmpty()) return;
+        // Remove duplicates while preserving order
+        List<String> violations = new ArrayList<>(new LinkedHashSet<>(reasons));
 
         String violationsString = String.join("&c, ", violations);
 
+        // Notify player
         MessageUtils.sendMessage(player, "&cIllegal item detected: " + violationsString);
 
         // Notify staff
@@ -75,10 +50,14 @@ public final class Adm1nGuard extends JavaPlugin {
                 + " had illegal item: " + violationsString;
 
         Bukkit.getOnlinePlayers().stream()
-                .filter(p -> p.hasPermission("adm1nguard.staff"))
+                .filter(PermissionUtil::hasStaff)
                 .forEach(p -> MessageUtils.sendMessage(p, staffMessage));
-        player.getInventory().remove(item);
 
+        // Remove only one matching item safely
+        player.getInventory().removeItemAnySlot(item);
+        player.updateInventory();
+
+        // Console log
         getLogger().warning(player.getName() + " had illegal item: "
                 + KeyUtil.material(item.getType())
                 + " -> " + ColorUtils.stripColor(violationsString.replace("&", "§")));
