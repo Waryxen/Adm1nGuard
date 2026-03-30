@@ -3,4 +3,5 @@ version: '${version}'
 main: me.adm1nguard.adm1nGuard.Adm1nGuard
 api-version: '1.21'
 author: Waryxen
+website: https://github.com/Waryxen/Adm1nGuard
 description: Custom made Anti NBT plugin

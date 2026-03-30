@@ -5,10 +5,12 @@ import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.attribute.Attribute;
 
+import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.Locale;
 import java.util.stream.Collectors;
 
+@SuppressWarnings("unused")
 public final class KeyUtil {
 
     private KeyUtil() {
@@ -24,61 +26,43 @@ public final class KeyUtil {
 
         try {
             NamespacedKey key = keyed.getKey();
-            if (key != null) {
-                return key.getKey();
-            }
+            return key.getKey();
         } catch (Throwable ignored) {
         }
 
-        return "unknown";
+        return fallbackName(keyed);
     }
 
     /**
      * Safe key name for Material.
      * Example: DIAMOND_SWORD -> diamond_sword
      */
-    @SuppressWarnings("deprecation")
     public static String material(Material material) {
         if (material == null) return "unknown";
 
-        try {
-            NamespacedKey key = material.getKey();
-            if (key != null) {
-                return key.getKey();
-            }
-        } catch (Throwable ignored) {
+        String namespaced = tryNamespacedKey(material);
+        if (namespaced != null) {
+            int index = namespaced.indexOf(':');
+            return index >= 0 ? namespaced.substring(index + 1) : namespaced;
         }
 
-        try {
-            return material.name().toLowerCase(Locale.ROOT);
-        } catch (Throwable ignored) {
-        }
-
-        return "unknown";
+        return material.name().toLowerCase(Locale.ROOT);
     }
 
     /**
      * Safe key name for Attribute.
-     * Example: GENERIC_ATTACK_DAMAGE -> generic_attack_damage
+     * Example: minecraft:attack_damage -> attack_damage
      */
-    @SuppressWarnings("all")
     public static String attribute(Attribute attribute) {
         if (attribute == null) return "unknown";
 
-        try {
-            NamespacedKey key = attribute.getKey();
-            if (key != null) {
-                return key.getKey();
-            }
-        } catch (Throwable ignored) {
+        String namespaced = tryNamespacedKey(attribute);
+        if (namespaced != null) {
+            int index = namespaced.indexOf(':');
+            return index >= 0 ? namespaced.substring(index + 1) : namespaced;
         }
 
-        try {
-            return attribute.name().toLowerCase(Locale.ROOT);
-        } catch (Throwable ignored) {
-        }
-
-        return "unknown";
+        return fallbackName(attribute);
     }
 
     /**
@@ -90,8 +74,8 @@ public final class KeyUtil {
 
         return Arrays.stream(input.replace(':', '_').split("_"))
                 .filter(part -> !part.isBlank())
-                .map(part -> part.substring(0, 1).toUpperCase(Locale.ROOT)
-                        + part.substring(1).toLowerCase(Locale.ROOT))
+                .map(part -> Character.toUpperCase(part.charAt(0)) +
+                        part.substring(1).toLowerCase(Locale.ROOT))
                 .collect(Collectors.joining(" "));
     }
 
@@ -114,5 +98,80 @@ public final class KeyUtil {
      */
     public static String display(Attribute attribute) {
         return pretty(attribute(attribute));
+    }
+
+    /**
+     * Full namespaced key for any Keyed object.
+     * Example: minecraft:diamond_sword
+     */
+    public static String namespaced(Keyed keyed) {
+        if (keyed == null) return "unknown:unknown";
+
+        try {
+            NamespacedKey key = keyed.getKey();
+            return key.toString();
+        } catch (Throwable ignored) {
+        }
+
+        return "minecraft:" + fallbackName(keyed);
+    }
+
+    /**
+     * Full namespaced key for Material.
+     */
+    public static String namespaced(Material material) {
+        if (material == null) return "unknown:unknown";
+
+        String namespaced = tryNamespacedKey(material);
+        if (namespaced != null) {
+            return namespaced;
+        }
+
+        return "minecraft:" + material.name().toLowerCase(Locale.ROOT);
+    }
+
+    /**
+     * Full namespaced key for Attribute.
+     */
+    public static String namespaced(Attribute attribute) {
+        if (attribute == null) return "unknown:unknown";
+
+        String namespaced = tryNamespacedKey(attribute);
+        if (namespaced != null) {
+            return namespaced;
+        }
+
+        return "minecraft:" + fallbackName(attribute);
+    }
+
+    /**
+     * Tries to call getKey() reflectively for compatibility with older APIs.
+     */
+    private static String tryNamespacedKey(Object object) {
+        if (object == null) return null;
+
+        try {
+            Method method = object.getClass().getMethod("getKey");
+            Object result = method.invoke(object);
+            if (result instanceof NamespacedKey key) {
+                return key.toString();
+            }
+        } catch (Throwable ignored) {
+        }
+
+        return null;
+    }
+
+    /**
+     * Fallback for enums / objects without getKey().
+     */
+    private static String fallbackName(Object object) {
+        if (object == null) return "unknown";
+
+        if (object instanceof Enum<?> enumValue) {
+            return enumValue.name().toLowerCase(Locale.ROOT);
+        }
+
+        return object.toString().toLowerCase(Locale.ROOT);
     }
 }

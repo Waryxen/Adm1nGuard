@@ -7,16 +7,24 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 public class IllegalAttributeChecker {
 
-    // Optional manual overrides for stricter limits
-    private static final Map<Attribute, Double> CUSTOM_MAX;
-    static {
-        // Example: limit attack damage to 10
-        // map.put(Attribute.GENERIC_ATTACK_DAMAGE, 10.0);
-        CUSTOM_MAX = Map.of();
-    }
+    // Custom maximum values for attributes (positive limits)
+    private static final Map<Attribute, Double> CUSTOM_MAX = Map.of(
+            // Example: limit attack damage to 10
+            //Attribute.ATTACK_DAMAGE, 10.0,
+            //Attribute.MAX_HEALTH, 40.0
+    );
+
+    // TODO: Make these configurable via config
+
+    // Custom minimum values for attributes (optional, for illegal negative checks)
+    private static final Map<Attribute, Double> CUSTOM_MIN = Map.of(
+            // Example: prevent health below 1
+            //Attribute.MAX_HEALTH, 1.0
+    );
 
     /**
      * Checks if the given ItemStack has any illegal attribute modifiers.
@@ -43,15 +51,26 @@ public class IllegalAttributeChecker {
         Multimap<Attribute, AttributeModifier> modifiers = meta.getAttributeModifiers();
         if (modifiers == null || modifiers.isEmpty()) return Collections.emptyMap();
 
-        Map<Attribute, List<AttributeModifier>> illegal = new HashMap<>();
+        return modifiers.asMap().entrySet().stream()
+                .flatMap(entry -> entry.getValue().stream()
+                        .filter(mod -> isIllegal(entry.getKey(), mod))
+                        .map(mod -> Map.entry(entry.getKey(), mod)))
+                .collect(Collectors.groupingBy(
+                        Map.Entry::getKey,
+                        Collectors.mapping(Map.Entry::getValue, Collectors.toUnmodifiableList())
+                ));
+    }
 
-        modifiers.asMap().forEach((attribute, mods) -> {
-            double maxAllowed = CUSTOM_MAX.getOrDefault(attribute, Double.MAX_VALUE);
-            mods.stream()
-                    .filter(mod -> mod.getAmount() < 0 || mod.getAmount() > maxAllowed)
-                    .forEach(mod -> illegal.computeIfAbsent(attribute, k -> new ArrayList<>()).add(mod));
-        });
+    /**
+     * Checks if a specific modifier is illegal based on configured limits.
+     */
+    private static boolean isIllegal(Attribute attribute, AttributeModifier modifier) {
+        double maxAllowed = CUSTOM_MAX.getOrDefault(attribute, Double.MAX_VALUE);
+        double minAllowed = CUSTOM_MIN.getOrDefault(attribute, Double.NEGATIVE_INFINITY);
 
-        return illegal;
+        double amount = modifier.getAmount();
+
+        // Illegal if below min or above max
+        return amount < minAllowed || amount > maxAllowed;
     }
 }
